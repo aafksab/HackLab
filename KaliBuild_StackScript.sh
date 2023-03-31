@@ -23,18 +23,7 @@ echo "LogixBomb:CupCake" | sudo chpasswd
 sudo mkhomedir_helper "LogixBomb"
 # Add user to root group
 sudo usermod -aG sudo LogixBomb
-sudo apt install -y tigervnc-standalone-server tigervnc-common byobu iptables
-sudo systemctl daemon-reload
-sudo apt install -y snapd
-sudo systemctl enable snapd.apparmor
-sudo systemctl enable snapd
-sudo systemctl start snapd
-sudo systemctl start snapd.apparmor
-sudo snap install novnc
-export PATH=$PATH:/snap/bin
-sudo apparmor_parser -r /etc/apparmor.d/*snap-confine*
-sudo apparmor_parser -r /var/lib/snapd/apparmor/profiles/snap-confine*
-sudo apt update -y && sudo apt full-upgrade -y && sudo apt autoremove -y && sudo apt clean -y && sudo apt autoclean -y
+
 # Get the current kernel version
 current_version=$(uname -r)
 # List all installed kernels
@@ -81,44 +70,72 @@ do
   sudo usermod -s /bin/zsh $user
 done
 echo "Done"
-# Generate a private key
-#openssl genrsa -out key.pem 2048
-# Generate a certificate signing request (CSR)
-#openssl req -new -key key.pem -out csr.pem
-# Generate the self-signed SSL certificate
-#openssl x509 -req -days 365 -in csr.pem -signkey key.pem -out self.pem
-# Display the details of the self-signed SSL certificate
-#openssl x509 -in self.pem -text
-# Step 1: Navigate to the systemd system directory
-cd /lib/systemd/system/
-# Step 2: Create a new service file called tigervncserver.service
-sudo tee tigervncserver.service > /dev/null <<EOF
-[Unit]
-Description=TigerVNC server
-[Service]
-Type=forking
-ExecStartPre=/bin/sh -c '/usr/bin/vncserver -kill %i > /dev/null 2>&1 || :'
-ExecStart=/sbin/runuser -l LogixBomb -c "/usr/bin/tigervncserver -SecurityTypes None -autokill no"
-ExecStop=/bin/sh -c '/usr/bin/tigervncserver -kill %i > /dev/null 2>&1 || :'
-[Install]
-WantedBy=multi-user.target
-EOF
-cd /root
-# Step 3: Reload the systemd daemon to pick up the new service file
-sudo systemctl daemon-reload
-# Step 4: Enable the service to start at boot
-sudo systemctl enable tigervncserver.service
-# Step 5: Start the service
-sudo systemctl start tigervncserver.service
-# Step 1: Navigate to the polkit directory
-cd /etc/polkit-1/localauthority/50-local.d/
-# Step 2: Create a new service file 
-sudo tee 45-allow-colord.pkla > /dev/null <<EOF
-[Allow Colord all Users]
-Identity=unix-user:*
-Action=org.freedesktop.color-manager.create-device;org.freedesktop.color-manager.create-profile;org.freedesktop.color-manager.delete-device;org.freedesktop.color-manager.delete-profile;org.freedesktop.color-manager.modify-device;org.freedesktop.color-manager.modify-profile
-ResultAny=no
-ResultInactive=no
-ResultActive=yes
-EOF
-sudo snap set novnc services.n6082.listen=6061 services.n6082.vnc=localhost:5901
+
+#!/bin/bash
+
+# Check if the script is running as root
+if [ "$(id -u)" -ne 0 ]; then
+  echo "This script must be run as root" >&2
+  exit 1
+fi
+
+# Update package list and upgrade installed packages
+echo "Updating package list and upgrading installed packages..."
+apt-get update -y
+apt-get upgrade -y
+
+# Clean up package cache
+echo "Cleaning up package cache..."
+apt-get clean
+
+# Install deborphan if not already installed
+if ! dpkg -l deborphan >/dev/null 2>&1; then
+    echo "Installing deborphan..."
+    apt-get install -y deborphan
+fi
+
+# Remove all kernels except the latest
+echo "Removing all kernels except the latest..."
+latest_kernel=$(uname -r | cut -d- -f1,2)
+all_kernels=$(dpkg --list | awk '/linux-image-[0-9]/ {print $2}' | grep -v "$latest_kernel")
+if [ -n "$all_kernels" ]; then
+    apt-get remove -y --purge $all_kernels
+fi
+
+# Remove all orphaned packages
+echo "Removing orphaned packages..."
+deborphan | xargs -r apt-get -y remove --purge
+
+# Remove deborphan after it runs
+echo "Removing deborphan..."
+apt-get remove -y --purge deborphan
+
+# Remove unneeded packages and their unused dependencies
+echo "Running autoremove to clean up unused dependencies..."
+apt-get autoremove -y
+
+# Remove temporary files
+echo "Removing temporary files..."
+rm -rf /tmp/*
+rm -rf /var/tmp/*
+
+# Reset SSH host keys
+echo "Resetting SSH host keys..."
+rm -f /etc/ssh/ssh_host_*
+
+# Remove user-specific configurations and history files
+echo "Removing user-specific configurations and history files..."
+for user in $(getent passwd | cut -f1 -d:); do
+  user_home=$(getent passwd "${user}" | cut -f6 -d:)
+  if [ -d "${user_home}" ]; then
+    rm -f "${user_home}"/.bash_history
+    rm -f "${user_home}"/.nano_history
+    rm -f "${user_home}"/.lesshst
+    rm -f "${user_home}"/.mysql_history
+    rm -f "${user_home}"/.ssh/authorized_keys
+  fi
+done
+
+# Clear log files
+echo "Clearing log files..."
+find /var/log -type f -exec truncate -s 0 {} \;
