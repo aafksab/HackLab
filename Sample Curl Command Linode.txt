@@ -6,7 +6,7 @@ curl -H "Content-Type: application/json" \
     "type": "g6-standard-2",
     "label": "kalibuild-us-southeast",
     "tags": [],
-    "root_pass": "Hornline4407!@",
+    "root_pass": "",
     "authorized_users": [],
     "booted": true,
     "backups_enabled": false,
