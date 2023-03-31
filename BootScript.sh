@@ -14,7 +14,7 @@ sudo snap install novnc
 export PATH=$PATH:/snap/bin
 sudo apparmor_parser -r /etc/apparmor.d/*snap-confine*
 sudo apparmor_parser -r /var/lib/snapd/apparmor/profiles/snap-confine*
-sudo apt install -y kali-desktop-live kali-tools-crypto-stego kali-tools-fuzzing kali-linux-top10 kali-linux-default
+sudo apt install -y kali-desktop-live kali-tools-crypto-stego kali-tools-fuzzing kali-tools-top10 kali-linux-default
 sudo apt update -y && sudo apt full-upgrade -y && sudo apt autoremove -y && sudo apt clean -y && sudo apt autoclean -y
 # Step 1: Navigate to the systemd system directory
 cd /lib/systemd/system/
