@@ -17,10 +17,12 @@ resource "random_integer" "label_suffix" {
 }
 
 resource "linode_instance" "hacklab" {
-  backup_id = "246972250"
+ # backup_id = "246972250"
+  image = "private/19751928"
   label = "hacklab-${random_integer.label_suffix.result}"
   group = "Terraform"
   region = "us-central"
   type = "g6-standard-2"
+  booted = true
+  resize_disk = true
 }
-
